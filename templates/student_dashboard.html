@@ -2,7 +2,7 @@
 {% block title %}내 학습 · 더소피 매일학습{% endblock %}
 {% block content %}
 <div class="page-heading hero-heading">
-  <div><p class="eyebrow">MY DAILY STUDY</p><h1>{{ profile.name }} 학생의 학습실</h1><p class="muted">{{ profile.school }} {{ profile.grade }}{% if profile.class_name %} · {{ profile.class_name }}{% endif %}</p></div>
+  <div><p class="eyebrow">MY DAILY STUDY</p><h1>{{ profile.name }} 학생의 학습실</h1><p class="muted">개별 로그인 학습 기록</p></div>
   <div class="average-pair"><article><span>모고·모평 평균</span><strong>{{ original_average if original_average is not none else '-' }}<small>점</small></strong></article><article><span>변형 문제 평균</span><strong>{{ transformed_average if transformed_average is not none else '-' }}<small>점</small></strong></article></div>
 </div>
 <div class="progress-note"><strong>학습 순서</strong> ① 인쇄된 학습지 풀이 → ② 모고·모평 답안 제출 → ③ 변형 문제 답안 제출 → ④ 괄호형 정답 전체 확인</div>

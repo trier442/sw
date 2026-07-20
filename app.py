@@ -111,11 +111,6 @@ class StudentProfile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     name = db.Column(db.String(80), nullable=False, index=True)
-    school = db.Column(db.String(120), nullable=False, default="")
-    grade = db.Column(db.String(40), nullable=False, default="고3")
-    class_name = db.Column(db.String(80), nullable=False, default="")
-    parent_phone = db.Column(db.String(40), nullable=False, default="")
-    memo = db.Column(db.Text, nullable=False, default="")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     user = db.relationship("User", back_populates="student_profile")
@@ -596,15 +591,7 @@ def register_routes(app: Flask) -> None:
                 return render_template("student_form.html")
             user = User(username=username, role="student", active=True, must_change_password=True)
             user.set_password(password)
-            profile = StudentProfile(
-                user=user,
-                name=name,
-                school=request.form.get("school", "").strip(),
-                grade=request.form.get("grade", "고3").strip(),
-                class_name=request.form.get("class_name", "").strip(),
-                parent_phone=request.form.get("parent_phone", "").strip(),
-                memo=request.form.get("memo", "").strip(),
-            )
+            profile = StudentProfile(user=user, name=name)
             db.session.add(profile)
             db.session.commit()
             session["issued_accounts"] = [{"name": name, "username": username, "password": password}]
@@ -641,15 +628,7 @@ def register_routes(app: Flask) -> None:
                 user = User(username=username, role="student", active=True, must_change_password=True)
                 user.set_password(password)
                 db.session.add(
-                    StudentProfile(
-                        user=user,
-                        name=name,
-                        school=(row.get("school") or "").strip(),
-                        grade=(row.get("grade") or "고3").strip(),
-                        class_name=(row.get("class_name") or "").strip(),
-                        parent_phone=(row.get("parent_phone") or "").strip(),
-                        memo=(row.get("memo") or "").strip(),
-                    )
+                    StudentProfile(user=user, name=name)
                 )
                 db.session.flush()
                 issued.append({"name": name, "username": username, "password": password})
@@ -795,9 +774,9 @@ def register_routes(app: Flask) -> None:
     @roles_required("director", "teacher")
     def sample_students_csv() -> Response:
         content = (
-            "\ufeffname,username,password,school,grade,class_name,parent_phone,memo\n"
-            "김학생,,,배곧고,고3,A반,010-0000-0000,독서 보강\n"
-            "이학생,,,함현고,고3,B반,010-1111-1111,화작 집중\n"
+            "\ufeffname,username,password\n"
+            "김학생,,\n"
+            "이학생,,\n"
         )
         return Response(
             content,
