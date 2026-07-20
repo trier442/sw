@@ -1,0 +1,29 @@
+databases:
+  - name: thesophie-daily-db
+    databaseName: thesophie_daily
+    user: thesophie_daily
+
+services:
+  - type: web
+    name: thesophie-daily-study
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 app:app
+    healthCheckPath: /health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: thesophie-daily-db
+          property: connectionString
+      - key: DIRECTOR_ID
+        value: director
+      - key: DIRECTOR_PASSWORD
+        sync: false
+      - key: TEACHER_ID
+        value: teacher
+      - key: TEACHER_PASSWORD
+        sync: false

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% set kind_label = '모고·모평' if submission.kind == 'original' else '변형 문제' %}
+{% block title %}채점 결과{% endblock %}
+{% block content %}
+<div class="result-hero"><div><p class="eyebrow">SCORING COMPLETE</p><h1>{{ submission.worksheet.title }} {{ kind_label }}</h1><p>{{ submission.correct_count }}문항 정답 · {{ submission.total_count - submission.correct_count }}문항 오답</p></div><div class="big-score">{{ submission.score }}<small>점</small></div></div>
+<div class="result-actions"><a class="button ghost" href="{{ url_for('student_worksheet', number=submission.worksheet.number) }}">회차 화면</a><a class="button secondary" href="{{ url_for('student_report', number=submission.worksheet.number) }}">성적표 이미지</a>{% if status.unlocked %}<a class="button primary" href="{{ url_for('concept_answers', number=submission.worksheet.number) }}">괄호형 정답 보기</a>{% endif %}</div>
+<section class="result-list">
+{% for item in results %}<article class="result-item {{ 'correct' if item.correct else 'wrong' }}"><div class="result-number">{{ loop.index }}</div><div><h2>{{ item.label }} <span>{{ '정답' if item.correct else '오답' }}</span></h2><p>내 답 {{ choice_symbols[item.answer] }} · 정답 {{ choice_symbols[item.correct_answer] }}</p><div class="explanation">{{ item.explanation }}</div></div></article>{% endfor %}
+</section>
+{% endblock %}

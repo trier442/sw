@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}내 학습 · 더소피 매일학습{% endblock %}
+{% block content %}
+<div class="page-heading hero-heading">
+  <div><p class="eyebrow">MY DAILY STUDY</p><h1>{{ profile.name }} 학생의 학습실</h1><p class="muted">{{ profile.school }} {{ profile.grade }}{% if profile.class_name %} · {{ profile.class_name }}{% endif %}</p></div>
+  <div class="average-pair"><article><span>모고·모평 평균</span><strong>{{ original_average if original_average is not none else '-' }}<small>점</small></strong></article><article><span>변형 문제 평균</span><strong>{{ transformed_average if transformed_average is not none else '-' }}<small>점</small></strong></article></div>
+</div>
+<div class="progress-note"><strong>학습 순서</strong> ① 인쇄된 학습지 풀이 → ② 모고·모평 답안 제출 → ③ 변형 문제 답안 제출 → ④ 괄호형 정답 전체 확인</div>
+<section class="worksheet-grid">
+{% for worksheet, status in cards %}
+  <article class="worksheet-card {% if status.complete %}complete{% endif %}">
+    <div class="card-top"><span class="session-no">{{ '%02d'|format(worksheet.number) }}</span><span class="ready-dot {{ 'ready' if worksheet.ready else 'waiting' }}">{{ '채점 가능' if worksheet.ready else '등록 대기' }}</span></div>
+    <h2>{{ worksheet.title }}</h2>
+    <p>{{ worksheet.subtitle or '회차별 학습 내용' }}</p>
+    <div class="status-row"><span class="{{ 'done' if status.original else '' }}">모고·모평 {{ status.original.score ~ '점' if status.original else '미제출' }}</span><span class="{{ 'done' if status.transformed else '' }}">변형 {{ status.transformed.score ~ '점' if status.transformed else '미제출' }}</span></div>
+    <a class="button {{ 'primary' if worksheet.ready else 'disabled' }} wide" href="{{ url_for('student_worksheet', number=worksheet.number) }}">{{ '학습하기' if worksheet.ready else '선생님 등록 대기' }}</a>
+  </article>
+{% endfor %}
+</section>
+{% endblock %}

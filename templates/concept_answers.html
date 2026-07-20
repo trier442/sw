@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ worksheet.title }} 괄호형 정답{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CONCEPT ANSWERS UNLOCKED</p><h1>{{ worksheet.title }} 괄호형 정답</h1><p class="muted">모고·모평과 변형 문제 제출이 모두 확인되어 전체 정답이 공개되었습니다.</p></div><a class="button ghost" href="{{ url_for('student_worksheet', number=worksheet.number) }}">회차로 돌아가기</a></div>
+<div class="concept-grid">{% for category, answers in worksheet.concept_answers.items() %}<section class="concept-section"><h2>{{ category }} <small>{{ answers|length }}개</small></h2><ol>{% for item in answers %}<li><span>{{ item.number }}</span><strong>{{ item.answer }}</strong></li>{% endfor %}</ol></section>{% endfor %}</div>
+{% endblock %}
