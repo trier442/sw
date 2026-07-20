@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ worksheet.title }}{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">SESSION {{ '%02d'|format(worksheet.number) }}</p><h1>{{ worksheet.title }}</h1><p class="muted">{{ worksheet.subtitle }} · 권장 {{ worksheet.recommended_minutes }}분</p></div>
+  <a class="button ghost" href="{{ url_for('student_dashboard') }}">전체 회차</a>
+</div>
+{% if not worksheet.ready %}<div class="empty-state"><h2>정답 데이터 등록 대기 중입니다.</h2><p>원장님이 원본 DOCX를 등록하면 이 회차 답안 입력이 열립니다.</p></div>{% else %}
+<div class="task-grid">
+  <article class="task-card"><span class="task-index">1</span><h2>모고·모평 답안</h2><p>{{ worksheet.original_count }}문항을 입력하면 즉시 채점됩니다.</p>{% if status.original %}<div class="score-badge">{{ status.original.score }}점 · {{ status.original.correct_count }}/{{ status.original.total_count }}</div>{% endif %}<a class="button primary wide" href="{{ url_for('answer_sheet', number=worksheet.number, kind='original') }}">{{ '다시 제출' if status.original else '답안 입력' }}</a></article>
+  <article class="task-card"><span class="task-index">2</span><h2>변형 문제 답안</h2><p>{{ worksheet.transformed_count }}문항을 별도로 채점합니다.</p>{% if status.transformed %}<div class="score-badge">{{ status.transformed.score }}점 · {{ status.transformed.correct_count }}/{{ status.transformed.total_count }}</div>{% endif %}<a class="button primary wide" href="{{ url_for('answer_sheet', number=worksheet.number, kind='transformed') }}">{{ '다시 제출' if status.transformed else '답안 입력' }}</a></article>
+  <article class="task-card {{ 'unlocked' if status.unlocked else 'locked' }}"><span class="task-index">3</span><h2>괄호형 정답</h2><p>두 답안 제출 후 {{ worksheet.concept_count }}개 정답이 한 번에 공개됩니다.</p><a class="button {{ 'primary' if status.unlocked else 'disabled' }} wide" href="{{ url_for('concept_answers', number=worksheet.number) }}">{{ '정답 전체 보기' if status.unlocked else '두 답안 제출 후 공개' }}</a></article>
+</div>
+{% if status.original or status.transformed %}<div class="action-bar"><a class="button secondary" href="{{ url_for('student_report', number=worksheet.number) }}">성적표 이미지 만들기</a></div>{% endif %}
+{% endif %}
+{% endblock %}

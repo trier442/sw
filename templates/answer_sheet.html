@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% set kind_label = '모고·모평' if kind == 'original' else '변형 문제' %}
+{% block title %}{{ worksheet.title }} {{ kind_label }} 답안{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">{{ kind_label|upper }}</p><h1>{{ worksheet.title }} {{ kind_label }} 답안</h1><p class="muted">모든 문항을 선택한 뒤 제출하세요. 제출 즉시 점수와 해설이 나옵니다.</p></div><a class="button ghost" href="{{ url_for('student_worksheet', number=worksheet.number) }}">회차로 돌아가기</a></div>
+<form method="post" class="answer-form" data-answer-form>
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<div class="answer-grid">
+{% for question in questions %}
+  <fieldset class="answer-item"><legend><strong>{{ loop.index }}</strong><span>{{ question.label }}</span></legend><div class="choice-row">{% for value in range(1,6) %}<label><input type="radio" name="answer" value="{{ value }}" {% if existing and existing.answers[loop.index0] == value %}checked{% endif %} required><span>{{ choice_symbols[value] }}</span></label>{% endfor %}</div></fieldset>
+{% endfor %}
+</div>
+<div class="sticky-submit"><span><strong>{{ questions|length }}</strong>문항</span><button class="button primary" type="submit">제출하고 채점하기</button></div>
+</form>
+{% endblock %}

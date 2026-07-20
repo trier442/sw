@@ -1,0 +1,164 @@
+ @app.get("/staff/students/<int:student_id>")
+    @roles_required("director", "teacher")
+    def staff_student_detail(student_id: int) -> Any:
+        profile = db.session.get(StudentProfile, student_id)
+        if not profile:
+            abort(404)
+        worksheets = Worksheet.query.order_by(Worksheet.number).all()
+        records = []
+        for worksheet in worksheets:
+            records.append(
+                {
+                    "worksheet": worksheet,
+                    "original": get_student_submission(profile.id, worksheet.id, "original"),
+                    "transformed": get_student_submission(profile.id, worksheet.id, "transformed"),
+                }
+            )
+        return render_template(
+            "staff_student_detail.html",
+            profile=profile,
+            records=records,
+            original_average=student_average(profile.id, "original"),
+            transformed_average=student_average(profile.id, "transformed"),
+        )
+
+    @app.post("/staff/students/<int:student_id>/reset-password")
+    @roles_required("director", "teacher")
+    def reset_student_password(student_id: int) -> Any:
+        profile = db.session.get(StudentProfile, student_id)
+        if not profile:
+            abort(404)
+        password = generate_password()
+        profile.user.set_password(password)
+        profile.user.must_change_password = True
+        db.session.commit()
+        session["issued_accounts"] = [
+            {"name": profile.name, "username": profile.user.username, "password": password}
+        ]
+        flash("학생 비밀번호를 재발급했습니다.", "success")
+        return redirect(url_for("staff_dashboard"))
+
+    @app.post("/staff/students/<int:student_id>/toggle")
+    @roles_required("director")
+    def toggle_student(student_id: int) -> Any:
+        profile = db.session.get(StudentProfile, student_id)
+        if not profile:
+            abort(404)
+        profile.user.active = not profile.user.active
+        db.session.commit()
+        flash("학생 계정 상태를 변경했습니다.", "success")
+        return redirect(url_for("staff_student_detail", student_id=student_id))
+
+    @app.get("/staff/students/<int:student_id>/report/<int:number>")
+    @roles_required("director", "teacher")
+    def staff_report(student_id: int, number: int) -> Any:
+        profile = db.session.get(StudentProfile, student_id)
+        worksheet = Worksheet.query.filter_by(number=number).first_or_404()
+        if not profile:
+            abort(404)
+        return render_template(
+            "report.html",
+            profile=profile,
+            worksheet=worksheet,
+            original=get_student_submission(profile.id, worksheet.id, "original"),
+            transformed=get_student_submission(profile.id, worksheet.id, "transformed"),
+            original_average=student_average(profile.id, "original"),
+            transformed_average=student_average(profile.id, "transformed"),
+            staff_view=True,
+        )
+
+    @app.route("/staff/workbook/import", methods=["GET", "POST"])
+    @roles_required("director")
+    def import_workbook() -> Any:
+        if request.method == "POST":
+            uploaded = request.files.get("file")
+            if not uploaded or not uploaded.filename:
+                flash("고3 매일학습지 DOCX 파일을 선택해 주세요.", "error")
+                return render_template("import_workbook.html")
+            suffix = Path(secure_filename(uploaded.filename)).suffix.lower()
+            if suffix not in ALLOWED_IMPORT_EXTENSIONS:
+                flash("DOCX 파일만 업로드할 수 있습니다.", "error")
+                return render_template("import_workbook.html")
+            try:
+                parsed = parse_daily_workbook(uploaded.stream)
+                summary = save_parsed_workbook(parsed)
+                db.session.add(
+                    ImportLog(
+                        filename=secure_filename(uploaded.filename),
+                        worksheet_count=summary["worksheets"],
+                        question_count=summary["questions"],
+                        imported_by=g.user.id,
+                    )
+                )
+                db.session.commit()
+            except Exception as exc:  # importer needs a useful admin-facing failure
+                db.session.rollback()
+                app.logger.exception("Workbook import failed")
+                flash(f"학습지 분석에 실패했습니다: {exc}", "error")
+                return render_template("import_workbook.html")
+            flash(
+                f"{summary['worksheets']}개 회차와 객관식 {summary['questions']}문항을 등록했습니다.",
+                "success",
+            )
+            return redirect(url_for("staff_dashboard"))
+        logs = ImportLog.query.order_by(ImportLog.created_at.desc()).limit(10).all()
+        return render_template("import_workbook.html", logs=logs)
+
+    @app.post("/staff/worksheets/<int:number>/publish")
+    @roles_required("director")
+    def toggle_publish(number: int) -> Any:
+        worksheet = Worksheet.query.filter_by(number=number).first_or_404()
+        worksheet.published = not worksheet.published
+        db.session.commit()
+        flash("회차 공개 상태를 변경했습니다.", "success")
+        return redirect(url_for("staff_dashboard"))
+
+    @app.get("/staff/sample-students.csv")
+    @roles_required("director", "teacher")
+    def sample_students_csv() -> Response:
+        content = (
+            "\ufeffname,username,password,school,grade,class_name,parent_phone,memo\n"
+            "김학생,,,배곧고,고3,A반,010-0000-0000,독서 보강\n"
+            "이학생,,,함현고,고3,B반,010-1111-1111,화작 집중\n"
+        )
+        return Response(
+            content,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=student_import_sample.csv"},
+        )
+
+
+def register_errors(app: Flask) -> None:
+    @app.errorhandler(400)
+    def bad_request(error: Any) -> tuple[str, int]:
+        return render_template("error.html", message=getattr(error, "description", "잘못된 요청입니다.")), 400
+
+    @app.errorhandler(403)
+    def forbidden(_error: Any) -> tuple[str, int]:
+        return render_template("error.html", message="이 화면에 접근할 권한이 없습니다."), 403
+
+    @app.errorhandler(404)
+    def not_found(_error: Any) -> tuple[str, int]:
+        return render_template("error.html", message="요청한 화면을 찾을 수 없습니다."), 404
+
+    @app.errorhandler(413)
+    def too_large(_error: Any) -> tuple[str, int]:
+        return render_template("error.html", message="업로드 파일은 20MB 이하여야 합니다."), 413
+
+
+def extract_docx_text(stream: Any) -> str:
+    document = Document(stream)
+    chunks: list[str] = []
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    for block in iter_docx_blocks(document):
+        if isinstance(block, Paragraph):
+            text = block.text.strip()
+            if text:
+                chunks.append(text)
+        elif isinstance(block, Table):
+            for row in block.rows:
+                cells = [normalize_space(cell.text) for cell in row.cells]
+                if any(cells):
+                    chunks.append(" | ".join

@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+import csv
+import io
+import json
+import os
+import re
+import secrets
+import string
+from datetime import datetime, timezone
+from functools import wraps
+from pathlib import Path
+from typing import Any, Callable, Iterable, TypeVar
+
+from docx import Document
+from flask import (
+    Flask,
+    Response,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import UniqueConstraint, func
+from sqlalchemy.exc import IntegrityError
+from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
+
+BASE_DIR = Path(__file__).resolve().parent
+CHOICE_MAP = {"①": 1, "②": 2, "③": 3, "④": 4, "⑤": 5}
+CHOICE_SYMBOLS = {value: key for key, value in CHOICE_MAP.items()}
+ROLES = {"director", "teacher", "student"}
+ALLOWED_IMPORT_EXTENSIONS = {".docx"}
+MAX_IMPORT_SIZE = 20 * 1024 * 1024
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def normalize_database_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://") :]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
+
+
+def create_app(test_config: dict[str, Any] | None = None) -> Flask:
+    app = Flask(__name__)
+    default_db = f"sqlite:///{BASE_DIR / 'thesophie.db'}"
+    app.config.update(
+        SECRET_KEY=os.getenv("SECRET_KEY", "dev-change-this-key"),
+        SQLALCHEMY_DATABASE_URI=normalize_database_url(os.getenv("DATABASE_URL", default_db)),
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        MAX_CONTENT_LENGTH=MAX_IMPORT_SIZE,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.getenv("COOKIE_SECURE", "0") == "1",
+        PERMANENT_SESSION_LIFETIME=60 * 60 * 12,
+    )
+    if test_config:
+        app.config.update(test_config)
+
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        ensure_seed_data()
+
+    register_context(app)
+    register_security(app)
+    register_routes(app)
+    register_errors(app)
+    return app
+
+
+db = SQLAlchemy()
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, index=True)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    must_change_password = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    last_login_at = db.Column(db.DateTime(timezone=True))
+
+    student_profile = db.relationship(
+        "StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+
+    def set_password(self, raw: str) -> None:
+        self.password_hash = generate_password_hash(raw)
+
+    def check_password(self, raw: str) -> bool:
+        return check_password_hash(self.password_hash, raw)
+
+
+class StudentProfile(db.Model):
+    __tablename__ = "student_profiles"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    name = db.Column(db.String(80), nullable=False, index=True)
+    school = db.Column(db.String(120), nullable=False, default="")
+    grade = db.Column(db.String(40), nullable=False, default="고3")
+    class_name = db.Column(db.String(80), nullable=False, default="")
+    parent_phone = db.Column(db.String(40), nullable=False, default="")
+    memo = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    user = db.relationship("User", back_populates="student_profile")
+    submissions = db.relationship("Submission", back_populates="student", cascade="all, delete-orphan")
+
+
+class Worksheet(db.Model):
+    __tablename__ = "worksheets"
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.Integer, unique=True, nullable=False, index=True)
+    title = db.Column(db.String(180), nullable=False)
+    subtitle = db.Column(db.String(500), nullable=False, default="")
+    recommended_minutes = db.Column(db.Integer, nullable=False, default=60)
+    original_questions = db.Column(db.JSON, nullable=False, default=list)
+    transformed_questions = db.Column(db.JSON, nullable=False, default=list)
+    concept_answers = db.Column(db.JSON, nullable=False, default=dict)
+    published = db.Column(db.Boolean, nullable=False, default=True)
+    imported_at = db.Column(db.DateTime(timezone=True))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    submissions = db.relationship("Submission", back_populates="worksheet", cascade="all, delete-orphan")
+
+    @property
+    def original_count(self) -> int:
+        return len(self.original_questions or [])
+
+    @property
+    def transformed_count(self) -> int:
+        return len(self.transformed_questions or [])
+
+    @property
+    def concept_count(self) -> int:
+        return sum(len(values) for values in (self.concept_answers or {}).values())
+
+    @property
+    def ready(self) -> bool:
+        return self.original_count > 0 and self.transformed_count > 0 and self.concept_count > 0
+
+
+class Submission(db.Model):
+    __tablename__ = "submissions"
+    __table_args__ = (UniqueConstraint("student_id", "worksheet_id", "kind", name="uq_submission"),)
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    worksheet_id = db.Column(db.Integer, db.ForeignKey("worksheets.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)  # original | transformed
+    answers = db.Column(db.JSON, nullable=False, default=list)
+    correct_count = db.Column(db.Integer, nullable=False, default=0)
+    total_count = db.Column(db.Integer, nullable=False, default=0)
+    score = db.Column(db.Float, nullable=False, default=0)
+    submitted_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+
+    student = db.relationship("StudentProfile", back_populates="submissions")
+    worksheet = db.relationship("Worksheet", back_populates="submissions")
+
+
+class ImportLog(db.Model):
+    __tablename__ = "import_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    worksheet_count = db.Column(db.Integer, nullable=False, default=0)
+    question_count = db.Column(db.Integer, nullable=False, defau

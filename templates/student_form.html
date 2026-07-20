@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}학생 등록{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">NEW STUDENT</p><h1>학생 개별 계정 발급</h1><p class="muted">아이디와 비밀번호를 비워 두면 자동으로 생성됩니다.</p></div><a class="button ghost" href="{{ url_for('staff_dashboard') }}">취소</a></div>
+<section class="panel narrow"><form method="post" class="form-grid"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><label>학생 이름<input name="name" required></label><label>학교<input name="school"></label><label>학년<input name="grade" value="고3"></label><label>반/그룹<input name="class_name"></label><label>아이디(선택)<input name="username" placeholder="자동: STU0001"></label><label>임시 비밀번호(선택)<input name="password" placeholder="자동 생성"></label><label>학부모 연락처<input name="parent_phone" inputmode="tel"></label><label class="full">메모<textarea name="memo" rows="4"></textarea></label><div class="full form-actions"><button class="button primary" type="submit">계정 발급</button></div></form></section>
+{% endblock %}

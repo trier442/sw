@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}로그인 · 더소피 매일학습{% endblock %}
+{% block content %}
+<section class="auth-shell">
+  <div class="auth-copy">
+    <p class="eyebrow">DAILY STUDY SYSTEM</p>
+    <h1>매일 풀고,<br>바로 확인하는 학습 기록</h1>
+    <p>모고·모평과 변형 문제를 각각 채점하고, 두 답안을 모두 제출하면 핵심 개념 괄호 정답이 한 번에 열립니다.</p>
+    <div class="feature-pills"><span>20회차</span><span>즉시 채점</span><span>개별 성적</span><span>PNG 성적표</span></div>
+  </div>
+  <div class="auth-card">
+    <h2>로그인</h2>
+    <p class="muted">학생은 개별 아이디, 선생님은 관리 아이디를 사용합니다.</p>
+    <form method="post" class="stack-form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label>아이디<input name="username" autocomplete="username" required autofocus></label>
+      <label>비밀번호<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="button primary wide" type="submit">로그인</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
