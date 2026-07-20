@@ -1,0 +1,42 @@
+name: Expand source package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.upload/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild source archive
+        run: |
+          cat .upload/source.zip.b64.part* | base64 --decode > /tmp/thesophie-daily.zip
+          rm -rf /tmp/thesophie-source
+          mkdir -p /tmp/thesophie-source
+          unzip -q /tmp/thesophie-daily.zip -d /tmp/thesophie-source
+          cp -a /tmp/thesophie-source/thesophie-daily/. ./
+
+      - name: Validate application
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m pytest -q
+
+      - name: Commit expanded source
+        run: |
+          rm -rf .upload
+          rm -f .github/workflows/expand-source.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Publish complete 더소피 매일학습 source'
+          git push
