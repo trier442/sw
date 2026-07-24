@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#294e3d">
-  <title>{% block title %}더소피 매일학습{% endblock %}</title>
+  <title>{% block title %}매일 국어 학습 관리{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
   {% block head %}{% endblock %}
@@ -12,7 +12,7 @@
 <body>
 <header class="topbar">
   <a class="brand" href="{{ url_for('home') if g.user else url_for('login') }}">
-    <span class="brand-mark">S</span><span>더소피 매일학습</span>
+    <span class="brand-mark">국</span><span>매일 국어 학습 관리</span>
   </a>
   {% if g.user %}
   <nav class="topnav">
@@ -31,7 +31,7 @@
   {% endfor %}
   {% block content %}{% endblock %}
 </main>
-<footer class="site-footer">더소피국어논술 · 고3 매일 학습 관리</footer>
+<footer class="site-footer">매일 국어 학습 관리</footer>
 {% block scripts %}{% endblock %}
 </body>
 </html>
